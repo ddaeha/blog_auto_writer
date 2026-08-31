@@ -28,6 +28,15 @@
         <h2>체험단 글 생성</h2>
         <form id="experience-form">
           <fieldset>
+            <legend>네이버지도로 자동 채우기 (선택)</legend>
+            <label>네이버지도 링크
+              <input type="text" id="ex-naverMapUrl" placeholder="네이버지도 앱/웹에서 가게 공유 링크 붙여넣기" />
+            </label>
+            <button type="button" id="naver-map-fill-btn" class="secondary">🔗 링크로 상호명/주소 자동 채우기</button>
+            <p id="naver-map-status" class="status"></p>
+          </fieldset>
+
+          <fieldset>
             <legend>필수 정보</legend>
             <label>상호명 <span class="required">*</span>
               <input type="text" id="ex-storeName" required placeholder="예: 뉴빔밥 서초교대점" />
@@ -81,7 +90,7 @@
             <button type="button" id="add-menu-item" class="secondary">+ 메뉴 추가</button>
           </fieldset>
 
-          <details class="optional-details">
+          <details class="optional-details" id="optional-details">
             <summary>더 정확하게 쓰고 싶다면 (선택 입력, 비워두면 AI가 알아서 채워요)</summary>
 
             <fieldset>

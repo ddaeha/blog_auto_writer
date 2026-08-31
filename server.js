@@ -17,6 +17,7 @@ const multer = require('multer');
 const { v4: uuidv4 } = require('uuid');
 const store = require('./db');
 const { generateExperiencePost, buildExperiencePrompt, parseAiResponse } = require('./generator');
+const { parseNaverMapPlace } = require('./naver-map');
 
 function requireExperienceFields(input, res) {
   const required = { storeName: '상호명', address: '장소/주소', hours: '영업시간', breakTime: '브레이크타임' };
@@ -64,6 +65,22 @@ app.post('/api/upload', upload.single('photo'), (req, res) => {
     filename: req.file.filename,
     url: `/uploads/${req.file.filename}`,
   });
+});
+
+// 네이버지도 링크로 상호명/주소/전화번호/업종 자동 채우기
+app.post('/api/parse-naver-map', async (req, res) => {
+  const { url } = req.body;
+  if (!url || !String(url).trim()) {
+    return res.status(400).json({ error: '네이버지도 링크를 입력해주세요.' });
+  }
+
+  try {
+    const result = await parseNaverMapPlace(String(url).trim());
+    res.json(result);
+  } catch (err) {
+    console.error(err);
+    res.status(400).json({ error: err.message || '네이버지도 정보를 가져오지 못했습니다.' });
+  }
 });
 
 // 글 목록 조회

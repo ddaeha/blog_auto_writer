@@ -43,6 +43,11 @@ const el = {
   manualResponseText: document.getElementById('manual-response-text'),
   manualSaveBtn: document.getElementById('manual-save-btn'),
   manualStatus: document.getElementById('manual-status'),
+
+  naverMapUrl: document.getElementById('ex-naverMapUrl'),
+  naverMapFillBtn: document.getElementById('naver-map-fill-btn'),
+  naverMapStatus: document.getElementById('naver-map-status'),
+  optionalDetails: document.getElementById('optional-details'),
 };
 
 /* ---------- 목록 ---------- */
@@ -143,6 +148,43 @@ function openPost(id) {
 
   renderList();
 }
+
+/* ---------- 체험단 글: 네이버지도 링크로 자동 채우기 ---------- */
+el.naverMapFillBtn.addEventListener('click', async () => {
+  const url = el.naverMapUrl.value.trim();
+  if (!url) {
+    el.naverMapStatus.textContent = '네이버지도 링크를 먼저 붙여넣어주세요.';
+    el.naverMapStatus.classList.add('error');
+    return;
+  }
+
+  el.naverMapFillBtn.disabled = true;
+  el.naverMapStatus.textContent = '네이버지도에서 정보를 가져오는 중...';
+  el.naverMapStatus.classList.remove('error');
+
+  try {
+    const res = await fetch('/api/parse-naver-map', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || '정보를 가져오지 못했습니다.');
+
+    document.getElementById('ex-storeName').value = data.storeName || '';
+    document.getElementById('ex-address').value = data.address || '';
+    document.getElementById('ex-phone').value = data.phone || '';
+    document.getElementById('ex-category').value = data.category || '';
+    if (data.phone || data.category) el.optionalDetails.open = true;
+
+    el.naverMapStatus.textContent = '상호명/주소/전화번호/업종을 채웠어요. 영업시간과 브레이크타임은 네이버지도가 제공하지 않아서 직접 입력해주세요.';
+  } catch (err) {
+    el.naverMapStatus.textContent = err.message;
+    el.naverMapStatus.classList.add('error');
+  } finally {
+    el.naverMapFillBtn.disabled = false;
+  }
+});
 
 /* ---------- 체험단 글: 카테고리별 사진 업로드 ---------- */
 async function uploadFile(file) {
