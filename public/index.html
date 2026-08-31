@@ -224,11 +224,13 @@
           <p>네이버 블로그로 옮기기: 사진이 포함된 글은 "이미지 포함 복사"로 복사한 뒤 네이버 블로그 글쓰기 화면에 붙여넣어보세요 (배포된 주소로 접속했을 때만 사진이 인식돼요, localhost에서는 텍스트만 복사해주세요). 이미지가 그대로 붙지 않으면 "텍스트만 복사" 후 사진을 직접 순서대로 추가해주세요. 최종 등록은 직접 눌러주세요.</p>
           <div class="publish-actions">
             <button id="copy-rich-btn">🖼️ 이미지 포함 복사하기</button>
+            <div id="rich-copy-split" class="rich-copy-split" hidden></div>
             <button id="copy-btn">📋 텍스트만 복사하기</button>
             <a id="naver-write-link" href="https://blog.naver.com/GoBlogWrite.naver" target="_blank" rel="noopener">
               🔗 네이버 블로그 글쓰기 열기
             </a>
           </div>
+          <p id="rich-copy-split-hint" class="hint" hidden>용량이 커서 여러 번에 나눠 붙여넣어야 해요. 복사1부터 순서대로 눌러서 붙여넣어주세요.</p>
         </div>
       </section>
     </main>

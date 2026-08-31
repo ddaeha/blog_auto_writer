@@ -23,6 +23,8 @@ const el = {
   deleteBtn: document.getElementById('delete-btn'),
   copyBtn: document.getElementById('copy-btn'),
   copyRichBtn: document.getElementById('copy-rich-btn'),
+  richCopySplit: document.getElementById('rich-copy-split'),
+  richCopySplitHint: document.getElementById('rich-copy-split-hint'),
   previewTitle: document.getElementById('preview-title'),
   previewContent: document.getElementById('preview-content'),
   previewView: document.getElementById('preview-view'),
@@ -137,6 +139,7 @@ function openPost(id) {
   el.previewView.hidden = false;
   el.editView.hidden = true;
   renderPreview();
+  resetRichCopyUI();
 
   renderList();
 }
@@ -459,61 +462,129 @@ el.copyBtn.addEventListener('click', async () => {
   }
 });
 
+const NAVER_MAX_BYTES = 4.5 * 1024 * 1024; // 네이버 본문 붙여넣기 5MB 제한에 여유를 둔 안전 기준
+
+// 제목/본문(사진 토큰 포함)/태그를 순서대로 나열한 (html, plain) 조각 목록으로 만든다.
+// 조각 단위로 나눠두면, 용량이 너무 클 때 조각 경계에서 여러 번 복사로 쪼갤 수 있다.
+function buildRichParts(post) {
+  const photos = photoMap(post);
+  const tokenRe = /\[\[PHOTO:([a-zA-Z0-9-]+)\]\]/g;
+  const content = el.editContent.value;
+  const parts = [{ html: `<h2>${escapeHtml(el.editTitle.value)}</h2>`, plain: `${el.editTitle.value}\n\n` }];
+
+  let lastIndex = 0;
+  let match;
+
+  while ((match = tokenRe.exec(content))) {
+    const textChunk = content.slice(lastIndex, match.index);
+    const textHtml = textToHtml(textChunk);
+    if (textHtml) parts.push({ html: textHtml, plain: textChunk });
+
+    const photo = photos[match[1]];
+    if (photo) {
+      // data URI 대신 실제 웹 주소를 넣는다 - 네이버 에디터는 data: 형태의
+      // 이미지를 인식하지 못하고, 붙여넣을 때 진짜 이미지 URL을 다시
+      // 자기 서버로 가져가서(fetch) 업로드하는 방식으로 동작하기 때문.
+      const absoluteUrl = new URL(photo.url, location.origin).href;
+      parts.push({
+        html: `<img src="${absoluteUrl}" alt="${escapeHtml(photo.label || '')}" style="max-width:100%;" />`,
+        plain: '(사진)',
+      });
+    }
+    lastIndex = tokenRe.lastIndex;
+  }
+
+  const tailHtml = textToHtml(content.slice(lastIndex));
+  if (tailHtml) parts.push({ html: tailHtml, plain: content.slice(lastIndex) });
+
+  parts.push({ html: `<p>${escapeHtml(el.editTags.value)}</p>`, plain: `\n\n${el.editTags.value}` });
+
+  return parts;
+}
+
+// 조각들을 순서대로 합치되, maxBytes를 넘기 직전에 새 묶음으로 끊는다.
+function chunkParts(parts, maxBytes) {
+  const chunks = [];
+  let current = [];
+  let currentBytes = 0;
+
+  for (const part of parts) {
+    const size = new Blob([part.html]).size;
+    if (current.length && currentBytes + size > maxBytes) {
+      chunks.push(current);
+      current = [];
+      currentBytes = 0;
+    }
+    current.push(part);
+    currentBytes += size;
+  }
+  if (current.length) chunks.push(current);
+
+  return chunks;
+}
+
+async function copyChunkToClipboard(chunkParts, btn, restoreLabel) {
+  btn.disabled = true;
+  btn.textContent = '복사 중...';
+  try {
+    const html = chunkParts.map((p) => p.html).join('');
+    const plain = chunkParts.map((p) => p.plain).join('');
+    const blobHtml = new Blob([html], { type: 'text/html' });
+    const blobText = new Blob([plain], { type: 'text/plain' });
+    await navigator.clipboard.write([
+      new ClipboardItem({ 'text/html': blobHtml, 'text/plain': blobText }),
+    ]);
+    flashButton(btn, '복사됨 ✓', restoreLabel);
+  } catch (err) {
+    console.error(err);
+    alert(err.message || '복사에 실패했습니다.');
+    btn.textContent = restoreLabel;
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+function resetRichCopyUI() {
+  el.copyRichBtn.hidden = false;
+  el.richCopySplit.hidden = true;
+  el.richCopySplit.innerHTML = '';
+  el.richCopySplitHint.hidden = true;
+}
+
 el.copyRichBtn.addEventListener('click', async () => {
   const post = state.posts.find((p) => p.id === state.activeId);
   if (!post) return;
 
-  el.copyRichBtn.disabled = true;
-  el.copyRichBtn.textContent = '복사 중...';
-
-  try {
-    const photos = photoMap(post);
-    const tokenRe = /\[\[PHOTO:([a-zA-Z0-9-]+)\]\]/g;
-    const content = el.editContent.value;
-    const isLocalOrigin = /^https?:\/\/(localhost|127\.0\.0\.1)/.test(location.origin);
-
-    let html = `<h2>${escapeHtml(el.editTitle.value)}</h2>`;
-    let lastIndex = 0;
-    let match;
-
-    while ((match = tokenRe.exec(content))) {
-      const textChunk = content.slice(lastIndex, match.index);
-      html += textToHtml(textChunk);
-      const photo = photos[match[1]];
-      if (photo) {
-        // data URI 대신 실제 웹 주소를 넣는다 - 네이버 에디터는 data: 형태의
-        // 이미지를 인식하지 못하고, 붙여넣을 때 진짜 이미지 URL을 다시
-        // 자기 서버로 가져가서(fetch) 업로드하는 방식으로 동작하기 때문.
-        const absoluteUrl = new URL(photo.url, location.origin).href;
-        html += `<img src="${absoluteUrl}" alt="${escapeHtml(photo.label || '')}" style="max-width:100%;" />`;
-      }
-      lastIndex = tokenRe.lastIndex;
-    }
-    html += textToHtml(content.slice(lastIndex));
-    html += `<p>${escapeHtml(el.editTags.value)}</p>`;
-
-    const plainFallback = `${el.editTitle.value}\n\n${content.replace(tokenRe, '(사진)')}\n\n${el.editTags.value}`;
-
-    if (isLocalOrigin && Object.keys(photos).length > 0) {
-      throw new Error(
-        '지금은 로컬 주소(localhost)로 접속 중이라, 네이버가 사진 링크를 가져갈 수 없어요. 배포된 주소(예: onrender.com)로 접속해서 시도해주세요.'
-      );
-    }
-
-    const blobHtml = new Blob([html], { type: 'text/html' });
-    const blobText = new Blob([plainFallback], { type: 'text/plain' });
-    await navigator.clipboard.write([
-      new ClipboardItem({ 'text/html': blobHtml, 'text/plain': blobText }),
-    ]);
-
-    flashButton(el.copyRichBtn, '복사됨 ✓', '🖼️ 이미지 포함 복사하기');
-  } catch (err) {
-    console.error(err);
-    alert(err.message || '이미지 포함 복사에 실패했습니다. "텍스트만 복사"를 이용해주세요.');
-    el.copyRichBtn.textContent = '🖼️ 이미지 포함 복사하기';
-  } finally {
-    el.copyRichBtn.disabled = false;
+  const isLocalOrigin = /^https?:\/\/(localhost|127\.0\.0\.1)/.test(location.origin);
+  const photos = photoMap(post);
+  if (isLocalOrigin && Object.keys(photos).length > 0) {
+    alert('지금은 로컬 주소(localhost)로 접속 중이라, 네이버가 사진 링크를 가져갈 수 없어요. 배포된 주소(예: onrender.com)로 접속해서 시도해주세요.');
+    return;
   }
+
+  const parts = buildRichParts(post);
+  const chunks = chunkParts(parts, NAVER_MAX_BYTES);
+
+  if (chunks.length <= 1) {
+    resetRichCopyUI();
+    await copyChunkToClipboard(parts, el.copyRichBtn, '🖼️ 이미지 포함 복사하기');
+    return;
+  }
+
+  // 압축해도 용량이 너무 큰 경우: "복사1", "복사2" ... 버튼으로 나눠서 순서대로 붙여넣게 함
+  el.copyRichBtn.hidden = true;
+  el.richCopySplitHint.hidden = false;
+  el.richCopySplit.hidden = false;
+  el.richCopySplit.innerHTML = '';
+
+  chunks.forEach((chunk, i) => {
+    const label = `복사${i + 1}`;
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.textContent = label;
+    btn.addEventListener('click', () => copyChunkToClipboard(chunk, btn, label));
+    el.richCopySplit.appendChild(btn);
+  });
 });
 
 function textToHtml(text) {

@@ -153,6 +153,9 @@ button:disabled { background: #b9bcc2; cursor: not-allowed; }
 
 .empty-hint { color: var(--muted); font-size: 14px; text-align: center; padding: 20px 0; }
 
+.rich-copy-split { display: flex; gap: 8px; flex-wrap: wrap; }
+.rich-copy-split button.done { background: var(--accent-dark); }
+
 .optional-details {
   border: 1px dashed var(--border);
   border-radius: 8px;
