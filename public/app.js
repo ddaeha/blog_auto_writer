@@ -177,7 +177,13 @@ el.naverMapFillBtn.addEventListener('click', async () => {
     document.getElementById('ex-category').value = data.category || '';
     if (data.phone || data.category) el.optionalDetails.open = true;
 
-    el.naverMapStatus.textContent = '상호명/주소/전화번호/업종을 채웠어요. 영업시간과 브레이크타임은 네이버지도가 제공하지 않아서 직접 입력해주세요.';
+    if (data.hoursFound) {
+      document.getElementById('ex-hours').value = data.hours || '';
+      document.getElementById('ex-breakTime').value = data.breakTime || '';
+      el.naverMapStatus.textContent = '상호명/주소/전화번호/업종/영업시간/브레이크타임까지 채웠어요. 실제와 맞는지 한 번 확인해주세요.';
+    } else {
+      el.naverMapStatus.textContent = '상호명/주소/전화번호/업종을 채웠어요. 영업시간은 네이버지도에 등록되어 있지 않아서 직접 입력해주세요.';
+    }
   } catch (err) {
     el.naverMapStatus.textContent = err.message;
     el.naverMapStatus.classList.add('error');
