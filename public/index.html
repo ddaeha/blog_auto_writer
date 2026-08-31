@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<title>블로그 글 작성 봇</title>
+<link rel="stylesheet" href="style.css" />
+
+<link rel="manifest" href="/manifest.json" />
+<meta name="theme-color" content="#2db400" />
+
+<!-- iOS 홈 화면 추가(PWA) 지원 -->
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="블로그봇" />
+<link rel="apple-touch-icon" href="/icons/icon-180.png" />
+<link rel="icon" href="/icons/icon-192.png" />
+</head>
+<body>
+  <div class="app">
+    <header class="app-header">
+      <h1>📝 블로그 글 작성 봇</h1>
+      <p class="subtitle">필수 정보만 입력하면 나머지는 AI가 알아서 채워서 체험단 초안을 만들어줘요</p>
+    </header>
+
+    <main class="layout">
+      <section class="panel generate-panel" id="experience-panel">
+        <h2>체험단 글 생성</h2>
+        <form id="experience-form">
+          <fieldset>
+            <legend>필수 정보</legend>
+            <label>상호명 <span class="required">*</span>
+              <input type="text" id="ex-storeName" required placeholder="예: 뉴빔밥 서초교대점" />
+            </label>
+            <label>장소/주소 <span class="required">*</span>
+              <input type="text" id="ex-address" required placeholder="예: 서울 서초구 서초중앙로 00" />
+            </label>
+            <label>정확한 영업시간 <span class="required">*</span>
+              <input type="text" id="ex-hours" required placeholder="예: 매일 10:00~22:00" />
+            </label>
+            <label>브레이크타임 <span class="required">*</span>
+              <input type="text" id="ex-breakTime" required placeholder="예: 15:00~17:00 (없으면 '없음')" />
+            </label>
+          </fieldset>
+
+          <fieldset>
+            <legend>사진 (선택, 필요한 것만 올려주세요)</legend>
+
+            <div class="photo-category" data-category="exterior">
+              <label>외관/간판 사진
+                <input type="file" class="category-photos-input" accept="image/*" multiple />
+              </label>
+              <div class="photo-preview"></div>
+            </div>
+
+            <div class="photo-category" data-category="interior">
+              <label>내부/좌석 사진
+                <input type="file" class="category-photos-input" accept="image/*" multiple />
+              </label>
+              <div class="photo-preview"></div>
+            </div>
+
+            <div class="photo-category" data-category="menuboard">
+              <label>메뉴판 사진
+                <input type="file" class="category-photos-input" accept="image/*" multiple />
+              </label>
+              <div class="photo-preview"></div>
+            </div>
+
+            <div class="photo-category" data-category="etc">
+              <label>기타 사진 (반찬 등, 사진마다 설명을 적으면 AI가 그걸 보고 자연스럽게 글에 녹여줘요)
+                <input type="file" class="category-photos-input" accept="image/*" multiple />
+              </label>
+              <div class="photo-preview"></div>
+            </div>
+          </fieldset>
+
+          <fieldset>
+            <legend>메뉴 (선택, 소개하고 싶은 메뉴만 추가해주세요)</legend>
+            <div id="menu-items"></div>
+            <button type="button" id="add-menu-item" class="secondary">+ 메뉴 추가</button>
+          </fieldset>
+
+          <details class="optional-details">
+            <summary>더 정확하게 쓰고 싶다면 (선택 입력, 비워두면 AI가 알아서 채워요)</summary>
+
+            <fieldset>
+              <legend>기본 정보 보충</legend>
+              <label>지역/동네 (비우면 주소로 자동 추정)
+                <input type="text" id="ex-area" placeholder="예: 교대" />
+              </label>
+              <label>업종
+                <input type="text" id="ex-category" placeholder="예: 맛집 / 카페 / 스터디룸" />
+              </label>
+              <label>예약 방법
+                <input type="text" id="ex-reservation" />
+              </label>
+              <label>전화번호
+                <input type="text" id="ex-phone" placeholder="예: 02-792-5824" />
+              </label>
+              <label>주차 안내
+                <input type="text" id="ex-parking" placeholder="예: 가능 / 불가 / 2시간 무료" />
+              </label>
+              <label>방문일
+                <input type="date" id="ex-visitDate" />
+              </label>
+              <label>동행자
+                <input type="text" id="ex-companion" placeholder="예: 친구랑, 혼자" />
+              </label>
+            </fieldset>
+
+            <fieldset>
+              <legend>방문 계기 &amp; 체험단 제공 내역</legend>
+              <label>방문 계기
+                <textarea id="ex-visitReason" rows="2" placeholder="비워두면 자연스럽게 지어서 씁니다"></textarea>
+              </label>
+              <label>체험단으로 제공받은 것
+                <textarea id="ex-sponsorship" rows="2" placeholder="예: 메뉴 2인분 무료 제공"></textarea>
+              </label>
+              <label class="checkbox-label">
+                <input type="checkbox" id="ex-disclosure" checked />
+                본문에 &quot;체험단 제공&quot; 문구 자동 삽입 (공정위 권장 표시)
+              </label>
+            </fieldset>
+
+            <fieldset>
+              <legend>맛 평가 &amp; 에피소드</legend>
+              <p class="hint">맛 평가, 개인 에피소드 등은 적지 않으면 AI가 알아서 자연스럽게 써줘요.</p>
+              <label>개인 에피소드 / 비교 메모
+                <textarea id="ex-episodeNotes" rows="2" placeholder="이전 방문 비교, 개인 취향 등"></textarea>
+              </label>
+              <label>추천 대상 (한 줄에 하나씩)
+                <textarea id="ex-recommendFor" rows="2" placeholder="예: 소규모 모임 하실 분&#10;조용한 공간 찾는 분"></textarea>
+              </label>
+            </fieldset>
+
+            <fieldset>
+              <legend>마무리</legend>
+              <label>마무리 인사 선호
+                <select id="ex-closing">
+                  <option value="">AI가 스타일가이드에서 자동 선택</option>
+                  <option value="그럼 오늘도 맛있게 잘 먹었습니다~ 끝!! ★">그럼 오늘도 맛있게 잘 먹었습니다~ 끝!! ★</option>
+                  <option value="오늘도 잘 먹었습니다~!">오늘도 잘 먹었습니다~!</option>
+                  <option value="그럼 오늘도 포스트 읽어주셔서 감사합니다~">그럼 오늘도 포스트 읽어주셔서 감사합니다~</option>
+                </select>
+              </label>
+              <label>해시태그 힌트
+                <input type="text" id="ex-hashtags" placeholder="쉼표로 구분, 비워두면 자동 생성" />
+              </label>
+            </fieldset>
+          </details>
+
+          <div class="button-row">
+            <button type="submit" id="experience-generate-btn">✨ API로 자동 생성 (유료)</button>
+            <button type="button" id="manual-prompt-btn" class="secondary">💬 무료로 직접 붙여넣기</button>
+          </div>
+        </form>
+        <p id="experience-status" class="status"></p>
+
+        <div id="manual-section" class="manual-section" hidden>
+          <fieldset>
+            <legend>1. 아래 내용을 복사해서 Claude.ai에 붙여넣으세요</legend>
+            <textarea id="manual-prompt-text" rows="8" readonly></textarea>
+            <div class="publish-actions">
+              <button type="button" id="copy-prompt-btn">📋 프롬프트 복사하기</button>
+              <a href="https://claude.ai/new" target="_blank" rel="noopener">🔗 Claude.ai 새 대화 열기</a>
+            </div>
+          </fieldset>
+          <fieldset>
+            <legend>2. Claude가 준 답변 전체를 여기에 붙여넣으세요</legend>
+            <textarea id="manual-response-text" rows="8" placeholder="Claude 답변 전체(<<<TITLE>>>부터 <<<END>>>까지)를 그대로 붙여넣어 주세요"></textarea>
+            <button type="button" id="manual-save-btn">💾 이 답변으로 글 저장하기</button>
+          </fieldset>
+          <p id="manual-status" class="status"></p>
+        </div>
+      </section>
+
+      <section class="panel list-panel">
+        <h2>생성된 글 목록</h2>
+        <ul id="post-list" class="post-list"></ul>
+      </section>
+
+      <section class="panel editor-panel" id="editor-panel" hidden>
+        <div class="editor-header">
+          <h2>글 편집</h2>
+          <div class="editor-actions">
+            <select id="edit-status">
+              <option value="draft">초안</option>
+              <option value="ready">발행 준비 완료</option>
+              <option value="published">발행됨</option>
+            </select>
+            <button id="save-btn">저장</button>
+            <button id="delete-btn" class="danger">삭제</button>
+          </div>
+        </div>
+
+        <div class="view-tabs">
+          <button class="view-tab active" data-view="preview">미리보기</button>
+          <button class="view-tab" data-view="edit">원본 편집</button>
+        </div>
+
+        <div id="preview-view">
+          <h3 id="preview-title"></h3>
+          <div id="preview-content" class="preview-content"></div>
+        </div>
+
+        <div id="edit-view" hidden>
+          <label>
+            제목
+            <input type="text" id="edit-title" />
+          </label>
+          <label>
+            본문 (사진 위치는 [[PHOTO:id]] 형태의 토큰으로 표시됩니다)
+            <textarea id="edit-content" rows="18"></textarea>
+          </label>
+        </div>
+
+        <label>
+          태그
+          <input type="text" id="edit-tags" />
+        </label>
+
+        <div class="publish-box">
+          <p>네이버 블로그로 옮기기: 사진이 포함된 글은 "이미지 포함 복사"로 복사한 뒤 네이버 블로그 글쓰기 화면에 붙여넣어보세요. 이미지가 그대로 붙지 않으면 "텍스트만 복사" 후 사진을 직접 순서대로 추가해주세요. 최종 등록은 직접 눌러주세요.</p>
+          <div class="publish-actions">
+            <button id="copy-rich-btn">🖼️ 이미지 포함 복사하기</button>
+            <button id="copy-btn">📋 텍스트만 복사하기</button>
+            <a id="naver-write-link" href="https://blog.naver.com/GoBlogWrite.naver" target="_blank" rel="noopener">
+              🔗 네이버 블로그 글쓰기 열기
+            </a>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

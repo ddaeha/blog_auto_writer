@@ -1,0 +1,18 @@
+{
+  "name": "blog-auto-writer",
+  "version": "1.0.0",
+  "description": "AI로 블로그 글 초안을 자동 생성하고 관리하는 로컬 웹앱",
+  "main": "server.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.32.1",
+    "dotenv": "^16.4.5",
+    "express": "^4.21.1",
+    "multer": "^2.0.0",
+    "uuid": "^11.1.0"
+  }
+}
