@@ -85,7 +85,7 @@ function formatBusinessHours(businessHoursArr) {
   }
 
   const breakLines = Array.from(breakGroups.entries()).map(
-    ([range, days]) => `${dayRangeLabel(days)} ${range}`
+    ([range, days]) => `${dayRangeLabel(days)} ${range} 브레이크타임`
   );
 
   return {

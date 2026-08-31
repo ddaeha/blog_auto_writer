@@ -108,7 +108,7 @@ function renderPreview() {
 
   el.previewTitle.textContent = post.title;
   const photos = photoMap(post);
-  const tokenRe = /\[\[PHOTO:([a-zA-Z0-9-]+)\]\]/g;
+  const tokenRe = /\[\[(?:PHOTO:([a-zA-Z0-9-]+)|DIVIDER)\]\]/g;
 
   let html = '';
   let lastIndex = 0;
@@ -117,9 +117,11 @@ function renderPreview() {
 
   while ((match = tokenRe.exec(content))) {
     html += `<span class="text-chunk">${escapeHtml(content.slice(lastIndex, match.index))}</span>`;
-    const photo = photos[match[1]];
-    if (photo) {
-      html += `<img src="${photo.url}" alt="${escapeHtml(photo.label || '')}" />`;
+    if (match[1]) {
+      const photo = photos[match[1]];
+      if (photo) html += `<img src="${photo.url}" alt="${escapeHtml(photo.label || '')}" />`;
+    } else {
+      html += `<hr class="preview-divider" />`;
     }
     lastIndex = tokenRe.lastIndex;
   }
@@ -497,10 +499,12 @@ el.deleteBtn.addEventListener('click', async () => {
 el.copyBtn.addEventListener('click', async () => {
   const post = state.posts.find((p) => p.id === state.activeId);
   const photos = post ? photoMap(post) : {};
-  const plainContent = el.editContent.value.replace(/\[\[PHOTO:([a-zA-Z0-9-]+)\]\]/g, (m, id) => {
-    const photo = photos[id];
-    return `(사진: ${photo ? photo.label : '이미지'})`;
-  });
+  const plainContent = el.editContent.value
+    .replace(/\[\[PHOTO:([a-zA-Z0-9-]+)\]\]/g, (m, id) => {
+      const photo = photos[id];
+      return `(사진: ${photo ? photo.label : '이미지'})`;
+    })
+    .replace(/\[\[DIVIDER\]\]/g, '─────────');
   const text = `${el.editTitle.value}\n\n${plainContent}\n\n태그: ${el.editTags.value}`;
   try {
     await navigator.clipboard.writeText(text);
@@ -516,9 +520,11 @@ const NAVER_MAX_BYTES = 4.5 * 1024 * 1024; // 네이버 본문 붙여넣기 5MB 
 // 조각 단위로 나눠두면, 용량이 너무 클 때 조각 경계에서 여러 번 복사로 쪼갤 수 있다.
 function buildRichParts(post) {
   const photos = photoMap(post);
-  const tokenRe = /\[\[PHOTO:([a-zA-Z0-9-]+)\]\]/g;
+  const tokenRe = /\[\[(?:PHOTO:([a-zA-Z0-9-]+)|DIVIDER)\]\]/g;
   const content = el.editContent.value;
-  const parts = [`<h2>${escapeHtml(el.editTitle.value)}</h2>`];
+  const parts = [
+    `<h2 style="font-size:19px;font-weight:bold;margin:0 0 16px;">${escapeHtml(el.editTitle.value)}</h2>`,
+  ];
 
   let lastIndex = 0;
   let match;
@@ -528,13 +534,17 @@ function buildRichParts(post) {
     const textHtml = textToHtml(textChunk);
     if (textHtml) parts.push(textHtml);
 
-    const photo = photos[match[1]];
-    if (photo) {
-      // data URI 대신 실제 웹 주소를 넣는다 - 네이버 에디터는 data: 형태의
-      // 이미지를 인식하지 못하고, 붙여넣을 때 진짜 이미지 URL을 다시
-      // 자기 서버로 가져가서(fetch) 업로드하는 방식으로 동작하기 때문.
-      const absoluteUrl = new URL(photo.url, location.origin).href;
-      parts.push(`<img src="${absoluteUrl}" alt="${escapeHtml(photo.label || '')}" style="max-width:100%;" />`);
+    if (match[1]) {
+      const photo = photos[match[1]];
+      if (photo) {
+        // data URI 대신 실제 웹 주소를 넣는다 - 네이버 에디터는 data: 형태의
+        // 이미지를 인식하지 못하고, 붙여넣을 때 진짜 이미지 URL을 다시
+        // 자기 서버로 가져가서(fetch) 업로드하는 방식으로 동작하기 때문.
+        const absoluteUrl = new URL(photo.url, location.origin).href;
+        parts.push(`<img src="${absoluteUrl}" alt="${escapeHtml(photo.label || '')}" style="max-width:100%;" />`);
+      }
+    } else {
+      parts.push('<hr style="margin:20px 0;border:none;border-top:1px solid #e2e4e8;" />');
     }
     lastIndex = tokenRe.lastIndex;
   }
@@ -542,7 +552,7 @@ function buildRichParts(post) {
   const tailHtml = textToHtml(content.slice(lastIndex));
   if (tailHtml) parts.push(tailHtml);
 
-  parts.push(`<p>${escapeHtml(el.editTags.value)}</p>`);
+  parts.push(`<p style="margin:16px 0 0;">${escapeHtml(el.editTags.value)}</p>`);
 
   return parts;
 }
@@ -673,7 +683,10 @@ function textToHtml(text) {
   return text
     .split('\n\n')
     .filter((p) => p.trim())
-    .map((p) => `<p>${escapeHtml(p).replace(/\n/g, '<br>')}</p>`)
+    .map(
+      (p) =>
+        `<p style="margin:0 0 16px;line-height:1.8;">${escapeHtml(p).replace(/\n/g, '<br>')}</p>`
+    )
     .join('');
 }
 
