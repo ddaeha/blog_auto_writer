@@ -464,12 +464,13 @@ el.copyRichBtn.addEventListener('click', async () => {
   if (!post) return;
 
   el.copyRichBtn.disabled = true;
-  el.copyRichBtn.textContent = '이미지 변환 중...';
+  el.copyRichBtn.textContent = '복사 중...';
 
   try {
     const photos = photoMap(post);
     const tokenRe = /\[\[PHOTO:([a-zA-Z0-9-]+)\]\]/g;
     const content = el.editContent.value;
+    const isLocalOrigin = /^https?:\/\/(localhost|127\.0\.0\.1)/.test(location.origin);
 
     let html = `<h2>${escapeHtml(el.editTitle.value)}</h2>`;
     let lastIndex = 0;
@@ -480,8 +481,11 @@ el.copyRichBtn.addEventListener('click', async () => {
       html += textToHtml(textChunk);
       const photo = photos[match[1]];
       if (photo) {
-        const dataUrl = await toDataUrl(photo.url);
-        html += `<img src="${dataUrl}" alt="${escapeHtml(photo.label || '')}" style="max-width:100%;" />`;
+        // data URI 대신 실제 웹 주소를 넣는다 - 네이버 에디터는 data: 형태의
+        // 이미지를 인식하지 못하고, 붙여넣을 때 진짜 이미지 URL을 다시
+        // 자기 서버로 가져가서(fetch) 업로드하는 방식으로 동작하기 때문.
+        const absoluteUrl = new URL(photo.url, location.origin).href;
+        html += `<img src="${absoluteUrl}" alt="${escapeHtml(photo.label || '')}" style="max-width:100%;" />`;
       }
       lastIndex = tokenRe.lastIndex;
     }
@@ -490,14 +494,13 @@ el.copyRichBtn.addEventListener('click', async () => {
 
     const plainFallback = `${el.editTitle.value}\n\n${content.replace(tokenRe, '(사진)')}\n\n${el.editTags.value}`;
 
-    const blobHtml = new Blob([html], { type: 'text/html' });
-    const sizeMb = blobHtml.size / (1024 * 1024);
-    if (sizeMb > 4.5) {
+    if (isLocalOrigin && Object.keys(photos).length > 0) {
       throw new Error(
-        `압축해도 용량이 너무 큽니다 (${sizeMb.toFixed(1)}MB, 네이버 제한 5MB). 사진 개수를 줄이거나 "텍스트만 복사"를 이용해주세요.`
+        '지금은 로컬 주소(localhost)로 접속 중이라, 네이버가 사진 링크를 가져갈 수 없어요. 배포된 주소(예: onrender.com)로 접속해서 시도해주세요.'
       );
     }
 
+    const blobHtml = new Blob([html], { type: 'text/html' });
     const blobText = new Blob([plainFallback], { type: 'text/plain' });
     await navigator.clipboard.write([
       new ClipboardItem({ 'text/html': blobHtml, 'text/plain': blobText }),
@@ -512,24 +515,6 @@ el.copyRichBtn.addEventListener('click', async () => {
     el.copyRichBtn.disabled = false;
   }
 });
-
-// 원본 사진을 그대로 base64로 넣으면 네이버 에디터의 "본문 5MB 제한"에
-// 금방 걸리기 때문에, 클립보드에 넣기 전에 가로 폭/화질을 줄여 용량을 낮춘다.
-async function toDataUrl(url, maxWidth = 1000, quality = 0.72) {
-  const res = await fetch(url);
-  const blob = await res.blob();
-  const bitmap = await createImageBitmap(blob);
-
-  const scale = Math.min(1, maxWidth / bitmap.width);
-  const canvas = document.createElement('canvas');
-  canvas.width = Math.round(bitmap.width * scale);
-  canvas.height = Math.round(bitmap.height * scale);
-
-  const ctx = canvas.getContext('2d');
-  ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
-
-  return canvas.toDataURL('image/jpeg', quality);
-}
 
 function textToHtml(text) {
   return text
