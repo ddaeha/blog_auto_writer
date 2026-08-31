@@ -54,7 +54,13 @@ const upload = multer({
 });
 
 app.use(express.json({ limit: '5mb' }));
-app.use(express.static(path.join(__dirname, 'public')));
+// 브라우저가 오래된 index.html/app.js/style.css를 계속 캐시해서 수정사항이
+// 반영 안 되는 문제를 막기 위해, 매번 서버에 최신 여부를 확인하도록 강제한다.
+app.use(
+  express.static(path.join(__dirname, 'public'), {
+    setHeaders: (res) => res.setHeader('Cache-Control', 'no-cache'),
+  })
+);
 app.use('/uploads', express.static(UPLOAD_DIR));
 
 // 사진 업로드 (체험단 글 작성용, 항목별로 개별 업로드)
