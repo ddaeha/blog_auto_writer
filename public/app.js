@@ -512,13 +512,13 @@ el.copyBtn.addEventListener('click', async () => {
 
 const NAVER_MAX_BYTES = 4.5 * 1024 * 1024; // 네이버 본문 붙여넣기 5MB 제한에 여유를 둔 안전 기준
 
-// 제목/본문(사진 토큰 포함)/태그를 순서대로 나열한 (html, plain) 조각 목록으로 만든다.
+// 제목/본문(사진 토큰 포함)/태그를 순서대로 나열한 HTML 조각 목록으로 만든다.
 // 조각 단위로 나눠두면, 용량이 너무 클 때 조각 경계에서 여러 번 복사로 쪼갤 수 있다.
 function buildRichParts(post) {
   const photos = photoMap(post);
   const tokenRe = /\[\[PHOTO:([a-zA-Z0-9-]+)\]\]/g;
   const content = el.editContent.value;
-  const parts = [{ html: `<h2>${escapeHtml(el.editTitle.value)}</h2>`, plain: `${el.editTitle.value}\n\n` }];
+  const parts = [`<h2>${escapeHtml(el.editTitle.value)}</h2>`];
 
   let lastIndex = 0;
   let match;
@@ -526,7 +526,7 @@ function buildRichParts(post) {
   while ((match = tokenRe.exec(content))) {
     const textChunk = content.slice(lastIndex, match.index);
     const textHtml = textToHtml(textChunk);
-    if (textHtml) parts.push({ html: textHtml, plain: textChunk });
+    if (textHtml) parts.push(textHtml);
 
     const photo = photos[match[1]];
     if (photo) {
@@ -534,18 +534,15 @@ function buildRichParts(post) {
       // 이미지를 인식하지 못하고, 붙여넣을 때 진짜 이미지 URL을 다시
       // 자기 서버로 가져가서(fetch) 업로드하는 방식으로 동작하기 때문.
       const absoluteUrl = new URL(photo.url, location.origin).href;
-      parts.push({
-        html: `<img src="${absoluteUrl}" alt="${escapeHtml(photo.label || '')}" style="max-width:100%;" />`,
-        plain: '(사진)',
-      });
+      parts.push(`<img src="${absoluteUrl}" alt="${escapeHtml(photo.label || '')}" style="max-width:100%;" />`);
     }
     lastIndex = tokenRe.lastIndex;
   }
 
   const tailHtml = textToHtml(content.slice(lastIndex));
-  if (tailHtml) parts.push({ html: tailHtml, plain: content.slice(lastIndex) });
+  if (tailHtml) parts.push(tailHtml);
 
-  parts.push({ html: `<p>${escapeHtml(el.editTags.value)}</p>`, plain: `\n\n${el.editTags.value}` });
+  parts.push(`<p>${escapeHtml(el.editTags.value)}</p>`);
 
   return parts;
 }
@@ -557,7 +554,7 @@ function chunkParts(parts, maxBytes) {
   let currentBytes = 0;
 
   for (const part of parts) {
-    const size = new Blob([part.html]).size;
+    const size = new Blob([part]).size;
     if (current.length && currentBytes + size > maxBytes) {
       chunks.push(current);
       current = [];
@@ -571,17 +568,54 @@ function chunkParts(parts, maxBytes) {
   return chunks;
 }
 
+// 화면에 실제로 그려진 콘텐츠를 마우스로 드래그해서 복사하는 것과 같은 방식.
+// (최신 Clipboard API의 ClipboardItem 다중 포맷 쓰기는 iOS Safari에서
+//  이미지가 빠지고 텍스트만 복사되는 문제가 있어서, 훨씬 호환성이 좋은
+//  선택(Selection) + execCommand('copy') 방식으로 대체했다.)
+async function copyHtmlBySelection(html) {
+  const container = document.createElement('div');
+  container.contentEditable = 'true';
+  container.style.position = 'fixed';
+  container.style.top = '0';
+  container.style.left = '-99999px';
+  container.style.whiteSpace = 'pre-wrap';
+  container.innerHTML = html;
+  document.body.appendChild(container);
+
+  try {
+    // 이미지가 실제로 로드된 뒤에 복사해야 깨진 이미지로 복사되지 않는다.
+    const imgs = Array.from(container.querySelectorAll('img'));
+    await Promise.all(
+      imgs.map((img) =>
+        img.complete
+          ? Promise.resolve()
+          : new Promise((resolve) => {
+              img.addEventListener('load', resolve, { once: true });
+              img.addEventListener('error', resolve, { once: true });
+            })
+      )
+    );
+
+    const range = document.createRange();
+    range.selectNodeContents(container);
+    const selection = window.getSelection();
+    selection.removeAllRanges();
+    selection.addRange(range);
+
+    const ok = document.execCommand('copy');
+    selection.removeAllRanges();
+    if (!ok) throw new Error('복사에 실패했습니다. 직접 선택해서 복사해주세요.');
+  } finally {
+    document.body.removeChild(container);
+  }
+}
+
 async function copyChunkToClipboard(chunkParts, btn, restoreLabel) {
   btn.disabled = true;
   btn.textContent = '복사 중...';
   try {
-    const html = chunkParts.map((p) => p.html).join('');
-    const plain = chunkParts.map((p) => p.plain).join('');
-    const blobHtml = new Blob([html], { type: 'text/html' });
-    const blobText = new Blob([plain], { type: 'text/plain' });
-    await navigator.clipboard.write([
-      new ClipboardItem({ 'text/html': blobHtml, 'text/plain': blobText }),
-    ]);
+    const html = chunkParts.join('');
+    await copyHtmlBySelection(html);
     flashButton(btn, '복사됨 ✓', restoreLabel);
   } catch (err) {
     console.error(err);
